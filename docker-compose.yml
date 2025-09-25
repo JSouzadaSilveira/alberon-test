@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # App
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alberon-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    networks:
+      - alberon-network
+    depends_on:
+      - db
+      - redis
+  # Nginx
+  nginx:
+    image: nginx:alpine
+    container_name: alberon-nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+    networks:
+      - alberon-network
+
+  # MySQL
+  db:
+    image: mysql:8.0
+    container_name: alberon-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: alberon
+      MYSQL_ROOT_PASSWORD: alberon_password
+      MYSQL_PASSWORD: alberon_password
+      MYSQL_USER: alberon
+    volumes:
+      - dbdata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - alberon-network
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: alberon-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - alberon-network
+
+  # Node for frontend development
+  node:
+    image: node:20-alpine
+    container_name: alberon-node
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - /var/www/node_modules
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+    ports:
+      - "5173:5173"
+    environment:
+      - HOST=0.0.0.0
+      - VITE_APP_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - alberon-network
+    depends_on:
+      - app
+
+networks:
+  alberon-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

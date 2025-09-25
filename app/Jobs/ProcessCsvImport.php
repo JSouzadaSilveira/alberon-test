@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use League\Csv\Reader;
 use Illuminate\Support\Facades\Log;
-use League\Csv\Statement;
 
 class ProcessCsvImport implements ShouldQueue
 {
