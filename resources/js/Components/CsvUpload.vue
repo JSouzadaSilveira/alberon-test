@@ -33,7 +33,9 @@ const submit = () => {
   if (!form.file) return;
 
   isUploading.value = true;
-  form.post('/contacts/import', {
+  axios.post('/contacts/import', {
+    file: form.file
+  }, {
     preserveScroll: true,
     onSuccess: (response) => {
       form.file = null;

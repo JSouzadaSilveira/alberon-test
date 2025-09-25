@@ -11,6 +11,19 @@ services:
     working_dir: /var/www
     volumes:
       - ./:/var/www
+      - ./docker/php/conf.d:/usr/local/etc/php/conf.d
+    environment:
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_CLIENT=phpredis
+      - CACHE_DRIVER=redis
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=alberon
+      - DB_USERNAME=alberon
+      - DB_PASSWORD=alberon_password
     networks:
       - alberon-network
     depends_on:
@@ -53,6 +66,8 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
     networks:
       - alberon-network
 
@@ -76,10 +91,37 @@ services:
     depends_on:
       - app
 
+  # Queue Worker
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alberon-queue
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan queue:work --verbose --tries=3 --timeout=90
+    volumes:
+      - ./:/var/www
+      - ./docker/php/conf.d:/usr/local/etc/php/conf.d
+    environment:
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_CLIENT=phpredis
+      - CACHE_DRIVER=redis
+    networks:
+      - alberon-network
+    depends_on:
+      - app
+      - redis
+      - db
+
 networks:
   alberon-network:
     driver: bridge
 
 volumes:
   dbdata:
+    driver: local
+  redis-data:
     driver: local
