@@ -54,6 +54,12 @@ php artisan migrate
 
 7. Start the development server:
 ```bash
+composer run dev
+``` 
+Or
+
+7. Start the development server:
+```bash
 php artisan serve
 ```
 
