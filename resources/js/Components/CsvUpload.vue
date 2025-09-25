@@ -8,6 +8,9 @@ const form = useForm({
 
 const isUploading = ref(false);
 const fileInput = ref(null);
+const showNotification = ref(false);
+const isSuccess = ref(false);
+const notificationMessage = ref('');
 
 const handleFileChange = (e) => {
   const file = e.target.files[0];
@@ -16,19 +19,33 @@ const handleFileChange = (e) => {
   }
 };
 
+const handleShowNotification = (success, message) => {
+  showNotification.value = true;
+  isSuccess.value = success;
+  notificationMessage.value = message;
+
+  setTimeout(() => {
+    showNotification.value = false;
+  }, 3000);
+};
+
 const submit = () => {
   if (!form.file) return;
 
   isUploading.value = true;
   form.post('/contacts/import', {
     preserveScroll: true,
-    onSuccess: () => {
+    onSuccess: (response) => {
       form.file = null;
-      fileInput.value.value = '';
+      if (fileInput.value) {
+        fileInput.value.value = '';
+      }
       isUploading.value = false;
+      handleShowNotification(true, response?.props?.flash?.message || 'File uploaded successfully!');
     },
-    onError: () => {
+    onError: (errors) => {
       isUploading.value = false;
+      handleShowNotification(false, errors.message || 'Error uploading file.');
     }
   });
 };
@@ -36,6 +53,46 @@ const submit = () => {
 
 <template>
   <div class="p-6 bg-white rounded-lg shadow">
+    <div
+      v-if="showNotification"
+      :class="[
+        'fixed top-4 right-4 p-4 rounded-lg shadow-lg transition-all duration-300 z-50',
+        isSuccess ? 'bg-green-500' : 'bg-red-500'
+      ]"
+    >
+      <div class="flex items-center">
+        <svg
+          v-if="isSuccess"
+          class="w-5 h-5 text-white mr-2"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <svg
+          v-else
+          class="w-5 h-5 text-white mr-2"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <p class="text-white">
+          {{ notificationMessage }}
+        </p>
+      </div>
+    </div>
+
     <form @submit.prevent="submit" class="space-y-4">
       <div class="flex items-center justify-center w-full">
         <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
@@ -46,7 +103,7 @@ const submit = () => {
             <p class="mb-2 text-sm text-gray-500">
               <span class="font-semibold">Click to upload</span> or drag and drop
             </p>
-            <p class="text-xs text-gray-500">CSV files only</p>
+            <p class="text-xs text-gray-500">Only CSV files</p>
           </div>
           <input
             ref="fileInput"

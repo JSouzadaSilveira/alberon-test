@@ -13,6 +13,14 @@ defineProps({
     required: true
   }
 });
+
+const twoFirstLetters = (name) => {
+  return name.split(' ').map(letter => letter[0]).join('');
+}
+
+const formatDate = (date) => {
+  return new Date(date).toLocaleDateString('pt-BR');
+}
 </script>
 
 <template>
@@ -31,12 +39,14 @@ defineProps({
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div v-for="contact in contacts.data" :key="contact.id" class="bg-white p-6 rounded-lg shadow">
               <div class="flex items-center space-x-4">
-                <img :src="contact.gravatar_url" :alt="contact.name" class="w-16 h-16 rounded-full">
+                <div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span class="text-gray-600">{{ twoFirstLetters(contact.name) }}</span>
+                </div>
                 <div>
                   <h3 class="text-lg font-semibold">{{ contact.name }}</h3>
                   <p class="text-gray-600">{{ contact.email }}</p>
                   <p class="text-gray-600">{{ contact.phone }}</p>
-                  <p class="text-gray-600">{{ contact.birthdate }}</p>
+                  <p class="text-gray-600">{{ formatDate(contact.birthdate) }}</p>
                 </div>
               </div>
             </div>
@@ -45,7 +55,7 @@ defineProps({
           <!-- Pagination -->
           <div v-if="contacts.links" class="mt-6">
             <div class="flex justify-between">
-              <Link
+              <a
                 v-for="link in contacts.links"
                 :key="link.label"
                 :href="link.url"
