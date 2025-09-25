@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use League\Csv\Reader;
+use Illuminate\Support\Facades\Log;
 use League\Csv\Statement;
 
 class ProcessCsvImport implements ShouldQueue
@@ -42,6 +43,11 @@ class ProcessCsvImport implements ShouldQueue
     public function handle(): void
     {
         try {
+            Log::info('Iniciando processamento do CSV:', [
+                'filePath' => $this->filePath,
+                'headers' => $this->headers
+            ]);
+
             // Verifica se o arquivo existe
             if (!Storage::exists($this->filePath)) {
                 throw new \Exception("Arquivo CSV não encontrado: {$this->filePath}");
@@ -50,20 +56,43 @@ class ProcessCsvImport implements ShouldQueue
             // Obtém o caminho absoluto do arquivo
             $csvPath = Storage::path($this->filePath);
 
-            // Cria o leitor CSV
-            $csv = Reader::createFromPath($csvPath, 'r');
-            $csv->setHeaderOffset(0);
-            $csv->setDelimiter(',');
+            // Lê o conteúdo do arquivo
+            $content = file_get_contents($csvPath);
 
-            // Processa os registros
-            $records = $csv->getRecords();
+            // Remove BOM se existir
+            $content = str_replace("\xEF\xBB\xBF", '', $content);
+
+            // Cria o leitor CSV
+            $csv = Reader::createFromString($content);
+            $csv->setDelimiter(';');
+
+            // Pula a primeira linha (cabeçalho)
+            $records = iterator_to_array($csv->getRecords());
+            array_shift($records); // Remove o cabeçalho
 
             // Conta o total de linhas
-            $this->summary['totalRows'] = iterator_count($csv);
+            $this->summary['totalRows'] = count($records);
 
             // Processa cada registro
             foreach ($records as $record) {
-                $data = array_combine($this->headers, array_values($record));
+                // Converte o registro em array
+                $values = is_array($record) ? array_values($record) : explode(';', $record[0]);
+
+                // Garante que temos o número correto de valores
+                if (count($values) !== count($this->headers)) {
+                    Log::error('Número incorreto de campos:', [
+                        'esperado' => count($this->headers),
+                        'recebido' => count($values),
+                        'valores' => $values
+                    ]);
+                    $this->summary['invalidRows']++;
+                    continue;
+                }
+
+                // Combina os headers com os valores
+                $data = array_combine($this->headers, $values);
+
+                Log::info('Registro:', ['data' => $data]);
 
                 // Valida os dados
                 $validator = Validator::make($data, [
@@ -75,7 +104,7 @@ class ProcessCsvImport implements ShouldQueue
 
                 if ($validator->fails()) {
                     $this->summary['invalidRows']++;
-                    \Log::info('Registro inválido:', [
+                    Log::info('Registro inválido:', [
                         'data' => $data,
                         'errors' => $validator->errors()->toArray()
                     ]);
@@ -85,7 +114,7 @@ class ProcessCsvImport implements ShouldQueue
                 // Verifica duplicatas
                 if (Contact::where('email', $data['email'])->exists()) {
                     $this->summary['duplicateRows']++;
-                    \Log::info('Email duplicado:', ['email' => $data['email']]);
+                    Log::info('Email duplicado:', ['email' => $data['email']]);
                     continue;
                 }
 
@@ -99,7 +128,7 @@ class ProcessCsvImport implements ShouldQueue
                         Cache::put('import_summary', $this->summary);
                     }
                 } catch (\Exception $e) {
-                    \Log::error('Erro ao criar contato:', [
+                    Log::error('Erro ao criar contato:', [
                         'data' => $data,
                         'error' => $e->getMessage()
                     ]);
@@ -110,11 +139,11 @@ class ProcessCsvImport implements ShouldQueue
             // Atualização final do sumário
             Cache::put('import_summary', $this->summary);
 
-            \Log::info('Importação concluída:', $this->summary);
+            Log::info('Importação concluída:', $this->summary);
 
         } catch (\Exception $e) {
             // Log do erro
-            \Log::error('Erro ao processar CSV: ' . $e->getMessage());
+            Log::error('Erro ao processar CSV: ' . $e->getMessage());
             throw $e;
         } finally {
             // Limpa o arquivo temporário
